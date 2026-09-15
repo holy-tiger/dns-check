@@ -16,7 +16,8 @@ RUN npm install
 # Copy application source code and configuration
 COPY tsconfig.json vite.config.ts index.html metadata.json ./
 COPY src/ ./src/
-COPY public/ ./public/
+# Copy public/ directory if it exists, or create an empty fallback
+COPY public* ./public/
 COPY server.ts ./
 
 # Build client SPA and compile server.ts into dist/server.cjs
