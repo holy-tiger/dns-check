@@ -58,17 +58,17 @@ export const ResultCard: React.FC<ResultCardProps> = ({
     if (result.resolvedIp) {
       lines.push(`[Resolved IP]: ${result.resolvedIp}`);
     }
-    if (result.steps.dns.status) {
-      lines.push(`- DNS: ${result.steps.dns.status} (${result.steps.dns.timeMs}ms)`);
+    if (result.steps?.dns?.status) {
+      lines.push(`- DNS: ${result.steps.dns.status} (${result.steps.dns.timeMs ?? 0}ms)`);
     }
-    if (result.steps.tcp.status) {
-      lines.push(`- TCP: ${result.steps.tcp.status} (${result.steps.tcp.timeMs}ms)`);
+    if (result.steps?.tcp?.status) {
+      lines.push(`- TCP: ${result.steps.tcp.status} (${result.steps.tcp.timeMs ?? 0}ms)`);
     }
-    if (result.steps.tls.status !== 'skipped') {
-      lines.push(`- TLS: ${result.steps.tls.status} (${result.steps.tls.timeMs}ms)`);
+    if (result.steps?.tls?.status && result.steps.tls.status !== 'skipped') {
+      lines.push(`- TLS: ${result.steps.tls.status} (${result.steps.tls.timeMs ?? 0}ms)`);
     }
-    if (result.steps.http.status !== 'skipped') {
-      lines.push(`- HTTP: ${result.steps.http.status} (${result.steps.http.timeMs}ms)`);
+    if (result.steps?.http?.status && result.steps.http.status !== 'skipped') {
+      lines.push(`- HTTP: ${result.steps.http.status} (${result.steps.http.timeMs ?? 0}ms)`);
     }
 
     navigator.clipboard.writeText(lines.join('\n'));
@@ -128,12 +128,12 @@ export const ResultCard: React.FC<ResultCardProps> = ({
   const renderStepItem = (
     title: string,
     icon: React.ReactNode,
-    step: DiagnosticStep,
+    step?: DiagnosticStep,
     extraInfo?: React.ReactNode
   ) => {
-    const isStepOk = step.status === 'success';
-    const isStepFailed = step.status === 'failed';
-    const isStepSkipped = step.status === 'skipped';
+    const isStepOk = step?.status === 'success';
+    const isStepFailed = step?.status === 'failed';
+    const isStepSkipped = !step || step.status === 'skipped' || step.status === 'pending';
 
     return (
       <div className={`flex-1 min-w-[130px] p-2.5 rounded-xl border transition-all ${
@@ -157,12 +157,12 @@ export const ResultCard: React.FC<ResultCardProps> = ({
           {isStepOk && (
             <div className="text-slate-600 flex items-center justify-between">
               <span className="text-emerald-700 font-medium">{t.stepOk}</span>
-              <span className="font-mono text-slate-400">{step.timeMs}ms</span>
+              <span className="font-mono text-slate-400">{step?.timeMs ?? 0}ms</span>
             </div>
           )}
           {isStepFailed && (
-            <div className="text-rose-700 font-medium truncate" title={step.error}>
-              {t.stepFailed} ({step.timeMs}ms)
+            <div className="text-rose-700 font-medium truncate" title={step?.error}>
+              {t.stepFailed} ({step?.timeMs ?? 0}ms)
             </div>
           )}
           {isStepSkipped && <div className="text-slate-400 text-[11px]">{t.skipped}</div>}
@@ -292,7 +292,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
           {renderStepItem(
             t.dnsStage,
             <Globe className="w-3.5 h-3.5 text-blue-500" />,
-            result.steps.dns,
+            result.steps?.dns,
             result.resolvedIp ? (
               <span className="font-mono text-slate-600 truncate block" title={result.resolvedIp}>
                 IP: {result.resolvedIp}
@@ -304,7 +304,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
           {renderStepItem(
             t.tcpStage,
             <Wifi className="w-3.5 h-3.5 text-indigo-500" />,
-            result.steps.tcp,
+            result.steps?.tcp,
             <span className="font-mono text-slate-500 block">{t.port}: {result.port}</span>
           )}
 
@@ -316,7 +316,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
             ) : (
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
             ),
-            result.steps.tls,
+            result.steps?.tls,
             result.certDetails ? (
               <span
                 className={`block truncate ${
@@ -334,7 +334,7 @@ export const ResultCard: React.FC<ResultCardProps> = ({
           {renderStepItem(
             t.httpStage,
             <Server className="w-3.5 h-3.5 text-purple-500" />,
-            result.steps.http,
+            result.steps?.http,
             result.httpDetails?.statusCode ? (
               <span
                 className={`font-mono block ${

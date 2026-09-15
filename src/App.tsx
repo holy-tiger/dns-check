@@ -8,6 +8,7 @@ import { ShareLinkModal } from './components/ShareLinkModal';
 import { UploadReportModal } from './components/UploadReportModal';
 import { LoadReportModal } from './components/LoadReportModal';
 import { CheckResult, SupportedLang, SavedReport, ReportUploadResponse } from './types';
+import { normalizeCheckResult } from './utils/normalizeResult';
 import { translations, getInitialLanguage, applyDocumentLanguage, tFormat } from './i18n';
 import { Activity, ShieldAlert, WifiOff, FileText, RotateCw, X, Globe, MapPin } from 'lucide-react';
 
@@ -67,8 +68,11 @@ export default function App() {
       const data = await res.json();
       if (data.success && data.report) {
         const rep: SavedReport = data.report;
+        const normalizedResults = Array.isArray(rep.results)
+          ? rep.results.map((r, i) => normalizeCheckResult(r, i))
+          : [];
         setSnapshotReport(rep);
-        setResults(rep.results || []);
+        setResults(normalizedResults);
         setInitialTargets(rep.targets || []);
         setActiveDnsServer(rep.customDns);
         setCurrentTimeout(rep.timeoutMs || 5000);
@@ -211,8 +215,8 @@ export default function App() {
       }
 
       const data = await response.json();
-      if (data.results) {
-        setResults(data.results);
+      if (data.results && Array.isArray(data.results)) {
+        setResults(data.results.map((r: unknown, i: number) => normalizeCheckResult(r, i)));
       }
     } catch (err: unknown) {
       console.error('Check failed:', err);
@@ -239,8 +243,9 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         if (data.result) {
+          const normalized = normalizeCheckResult(data.result);
           setResults((prev) =>
-            prev.map((item) => (item.inputUrl === targetUrl ? data.result : item))
+            prev.map((item) => (item.inputUrl === targetUrl ? normalized : item))
           );
         }
       }

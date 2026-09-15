@@ -50,10 +50,10 @@ export const DiagnosticReportModal: React.FC<DiagnosticReportModalProps> = ({
         lines.push(`- **Troubleshooting**: ${r.solutionSuggestion}`);
       }
       lines.push(`- **Pipeline**:`);
-      lines.push(`  * ${t.dnsStage}: ${r.steps.dns.status} (${r.steps.dns.timeMs}ms)`);
-      lines.push(`  * ${t.tcpStage}: ${r.steps.tcp.status} (${r.steps.tcp.timeMs}ms)`);
-      lines.push(`  * ${t.tlsStage}: ${r.steps.tls.status} (${r.steps.tls.timeMs}ms)`);
-      lines.push(`  * ${t.httpStage}: ${r.steps.http.status} (${r.steps.http.timeMs}ms)`);
+      lines.push(`  * ${t.dnsStage}: ${r.steps?.dns?.status ?? 'pending'} (${r.steps?.dns?.timeMs ?? 0}ms)`);
+      lines.push(`  * ${t.tcpStage}: ${r.steps?.tcp?.status ?? 'pending'} (${r.steps?.tcp?.timeMs ?? 0}ms)`);
+      lines.push(`  * ${t.tlsStage}: ${r.steps?.tls?.status ?? 'pending'} (${r.steps?.tls?.timeMs ?? 0}ms)`);
+      lines.push(`  * ${t.httpStage}: ${r.steps?.http?.status ?? 'pending'} (${r.steps?.http?.timeMs ?? 0}ms)`);
       lines.push('');
     });
 
