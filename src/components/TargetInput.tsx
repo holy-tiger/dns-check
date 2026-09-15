@@ -11,6 +11,8 @@ interface TargetInputProps {
   onOpenShareModal: (targets: string[], customDns?: string, timeoutMs?: number) => void;
   autoUpload: boolean;
   onToggleAutoUpload: (enabled: boolean) => void;
+  // When true (page opened from a generated share link), the "生成测试链接" entries are hidden
+  hideShareLinkEntry?: boolean;
 }
 
 export const TargetInput: React.FC<TargetInputProps> = ({
@@ -21,6 +23,7 @@ export const TargetInput: React.FC<TargetInputProps> = ({
   onOpenShareModal,
   autoUpload,
   onToggleAutoUpload,
+  hideShareLinkEntry = false,
 }) => {
   const [inputText, setInputText] = useState(
     initialTargets && initialTargets.length > 0
@@ -124,15 +127,17 @@ export const TargetInput: React.FC<TargetInputProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-            <button
-              id="generate-share-link-top-btn"
-              type="button"
-              onClick={handleOpenShare}
-              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 transition-colors shadow-2xs"
-            >
-              <Link2 className="w-3.5 h-3.5" />
-              <span>{t.generateLinkBtn}</span>
-            </button>
+            {!hideShareLinkEntry && (
+              <button
+                id="generate-share-link-top-btn"
+                type="button"
+                onClick={handleOpenShare}
+                className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 transition-colors shadow-2xs"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                <span>{t.generateLinkBtn}</span>
+              </button>
+            )}
             <button
               id="toggle-advanced-btn"
               type="button"
@@ -280,15 +285,17 @@ export const TargetInput: React.FC<TargetInputProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 flex-wrap justify-end">
-            <button
-              id="generate-share-link-bottom-btn"
-              type="button"
-              onClick={handleOpenShare}
-              className="inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300/80 text-emerald-800 text-xs sm:text-sm font-semibold transition-colors shadow-2xs"
-            >
-              <Link2 className="w-4 h-4 text-emerald-600" />
-              <span>{t.generateLinkBtn}</span>
-            </button>
+            {!hideShareLinkEntry && (
+              <button
+                id="generate-share-link-bottom-btn"
+                type="button"
+                onClick={handleOpenShare}
+                className="inline-flex items-center justify-center space-x-1.5 px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300/80 text-emerald-800 text-xs sm:text-sm font-semibold transition-colors shadow-2xs"
+              >
+                <Link2 className="w-4 h-4 text-emerald-600" />
+                <span>{t.generateLinkBtn}</span>
+              </button>
+            )}
 
             <button
               id="start-detection-btn"

@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     ports:
       # 宿主机端口:容器内服务端口（默认 3000，可通过环境变量自定义）
-      - "${HOST_PORT:-3000}:3000"
+      - "${HOST_PORT:-16000}:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
