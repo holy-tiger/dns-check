@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, RotateCcw, Sparkles, SlidersHorizontal, Server, Clock, Link2 } from 'lucide-react';
+import { Play, RotateCcw, Sparkles, SlidersHorizontal, Server, Clock, Link2, CloudUpload } from 'lucide-react';
 import { SupportedLang } from '../types';
 import { translations, tFormat } from '../i18n';
 
@@ -9,6 +9,8 @@ interface TargetInputProps {
   currentLang: SupportedLang;
   initialTargets?: string[];
   onOpenShareModal: (targets: string[], customDns?: string, timeoutMs?: number) => void;
+  autoUpload: boolean;
+  onToggleAutoUpload: (enabled: boolean) => void;
 }
 
 export const TargetInput: React.FC<TargetInputProps> = ({
@@ -17,6 +19,8 @@ export const TargetInput: React.FC<TargetInputProps> = ({
   currentLang,
   initialTargets,
   onOpenShareModal,
+  autoUpload,
+  onToggleAutoUpload,
 }) => {
   const [inputText, setInputText] = useState(
     initialTargets && initialTargets.length > 0
@@ -228,6 +232,28 @@ export const TargetInput: React.FC<TargetInputProps> = ({
               <p className="text-[11px] text-slate-400 mt-1.5">
                 {t.timeoutDesc}
               </p>
+            </div>
+
+            {/* Auto Upload Setting */}
+            <div className="md:col-span-2 pt-2 border-t border-slate-200/60 flex items-center justify-between">
+              <label htmlFor="auto-upload-checkbox" className="flex items-center space-x-2.5 cursor-pointer text-xs font-medium text-slate-700">
+                <input
+                  id="auto-upload-checkbox"
+                  type="checkbox"
+                  checked={autoUpload}
+                  onChange={(e) => onToggleAutoUpload(e.target.checked)}
+                  className="w-4 h-4 rounded-sm text-blue-600 focus:ring-blue-500 border-slate-300"
+                />
+                <span className="flex items-center space-x-1.5">
+                  <CloudUpload className="w-3.5 h-3.5 text-blue-600" />
+                  <span>{t.autoUploadLabel}</span>
+                </span>
+              </label>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                autoUpload ? 'bg-blue-50 text-blue-700 border border-blue-200/60' : 'bg-slate-100 text-slate-400'
+              }`}>
+                {autoUpload ? t.autoUploadBadge : 'Off'}
+              </span>
             </div>
           </div>
         )}

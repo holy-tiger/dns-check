@@ -34,6 +34,9 @@ export default function App() {
   const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [uploadedReportInfo, setUploadedReportInfo] = useState<ReportUploadResponse | null>(null);
   const [isUploadingReport, setIsUploadingReport] = useState(false);
+  // Auto-upload toggle (defaults to true so every detection is automatically reported and saved to disk)
+  const [autoUploadEnabled, setAutoUploadEnabled] = useState(true);
+  const [autoUploadSuccessToast, setAutoUploadSuccessToast] = useState<{ id: string; viewUrl: string } | null>(null);
 
   // Avoid running autostart twice
   const hasAutoStartedRef = useRef(false);

@@ -1152,32 +1152,78 @@ ensureReportsDir();
  * Extract client IP from headers or socket, handling multiple reverse proxy hops
  */
 function extractClientIp(req: express.Request): string {
-  // Check Cloudflare or common proxy headers
+  // Helper to clean IP address: strip IPv6 prefix, brackets, or trailing port (e.g. "1.2.3.4:5678" or "[2001:db8::1]:8080")
+  const cleanIp = (raw: string): string => {
+    let s = raw.trim();
+    if (!s) return '';
+    // Strip ::ffff: if IPv4-mapped IPv6
+    s = s.replace(/^::ffff:/, '');
+    // If [IPv6]:port format
+    const ipv6Bracket = s.match(/^\[([^\]]+)\](?::\d+)?$/);
+    if (ipv6Bracket) return ipv6Bracket[1];
+    // If standard IPv4:port
+    if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/.test(s)) {
+      return s.split(':')[0];
+    }
+    return s;
+  };
+
+  const candidates: string[] = [];
+
+  // 1. Cloudflare headers
   const cfConnectingIp = req.headers['cf-connecting-ip'];
   if (typeof cfConnectingIp === 'string' && cfConnectingIp.trim()) {
-    return cfConnectingIp.trim();
+    candidates.push(cleanIp(cfConnectingIp));
   }
 
+  // 2. True-Client-IP (Cloudflare Enterprise / Akamai / Fastly)
+  const trueClientIp = req.headers['true-client-ip'];
+  if (typeof trueClientIp === 'string' && trueClientIp.trim()) {
+    candidates.push(cleanIp(trueClientIp));
+  }
+
+  // 3. X-Real-IP (standard Nginx / ingress proxy)
   const xRealIp = req.headers['x-real-ip'];
   if (typeof xRealIp === 'string' && xRealIp.trim()) {
-    return xRealIp.trim();
+    candidates.push(cleanIp(xRealIp));
   }
 
+  // 4. X-Forwarded-For (can contain a comma-separated list of client, proxy1, proxy2...)
   const xForwardedFor = req.headers['x-forwarded-for'];
   if (typeof xForwardedFor === 'string' && xForwardedFor.trim()) {
-    const ips = xForwardedFor.split(',').map((s) => s.trim()).filter(Boolean);
-    if (ips.length > 0) {
-      return ips[0];
+    const rawIps = xForwardedFor.split(',').map((s) => cleanIp(s)).filter(Boolean);
+    candidates.push(...rawIps);
+  } else if (Array.isArray(xForwardedFor)) {
+    for (const item of xForwardedFor) {
+      if (typeof item === 'string') {
+        const rawIps = item.split(',').map((s) => cleanIp(s)).filter(Boolean);
+        candidates.push(...rawIps);
+      }
     }
   }
 
+  // 5. Express req.ip (populated when trust proxy is true)
   if (req.ip && typeof req.ip === 'string') {
-    // Strip ::ffff: if IPv4-mapped IPv6
-    return req.ip.replace(/^::ffff:/, '');
+    candidates.push(cleanIp(req.ip));
   }
 
+  // 6. Direct TCP socket address
   const remote = req.socket.remoteAddress || '';
-  return remote.replace(/^::ffff:/, '');
+  if (remote) {
+    candidates.push(cleanIp(remote));
+  }
+
+  // Filter valid IP candidates
+  const validCandidates = candidates.filter((ip) => ip && ip !== 'unknown');
+
+  // If there are public IPs, prioritize the first public non-loopback IP
+  const nonPrivateIp = validCandidates.find((ip) => !isPrivateOrLocalIp(ip));
+  if (nonPrivateIp) {
+    return nonPrivateIp;
+  }
+
+  // Fallback to first candidate or 127.0.0.1
+  return validCandidates[0] || '127.0.0.1';
 }
 
 /**
@@ -1434,6 +1480,25 @@ app.get('/api/reports', async (req, res) => {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Debug endpoint: inspect resolved client IP and proxy headers
+app.get('/api/my-ip', (req, res) => {
+  const detectedIp = extractClientIp(req);
+  res.json({
+    detectedIp,
+    isPrivateOrLocal: isPrivateOrLocalIp(detectedIp),
+    headers: {
+      'cf-connecting-ip': req.headers['cf-connecting-ip'] || null,
+      'true-client-ip': req.headers['true-client-ip'] || null,
+      'x-real-ip': req.headers['x-real-ip'] || null,
+      'x-forwarded-for': req.headers['x-forwarded-for'] || null,
+      'x-forwarded-proto': req.headers['x-forwarded-proto'] || null,
+      host: req.headers.host || null,
+    },
+    expressReqIp: req.ip,
+    socketRemoteAddress: req.socket.remoteAddress,
+  });
 });
 
 // Vite middleware & Static serving

@@ -184,6 +184,10 @@ export interface Translations {
   // Upload & Local File Persistence & Restore
   uploadReportBtn: string;
   uploadingReport: string;
+  autoUploadLabel: string;
+  autoUploadBadge: string;
+  autoSavedToast: string;
+  viewReportBtn: string;
   uploadModalTitle: string;
   uploadModalDesc: string;
   reportUniqueId: string;
@@ -384,6 +388,10 @@ export const translations: Record<SupportedLang, Translations> = {
     // Upload & Local File Persistence & Restore
     uploadReportBtn: '上报保存结果',
     uploadingReport: '正在上报保存...',
+    autoUploadLabel: '检测完成后自动上报并保存',
+    autoUploadBadge: '已开启自动上报保存',
+    autoSavedToast: '已自动上报并保存到服务器文件 ({id})',
+    viewReportBtn: '查看快照',
     uploadModalTitle: '检测结果已成功上报并保存到本地文件',
     uploadModalDesc: '本次诊断的所有数据已生成唯一标识，并写入服务器本地文件。其他用户打开还原链接后，可完整重现全部指标与详细错误原因：',
     reportUniqueId: '报告唯一标识 (ID)',
@@ -583,6 +591,10 @@ export const translations: Record<SupportedLang, Translations> = {
     // Upload & Local File Persistence & Restore
     uploadReportBtn: 'Upload & Save Report',
     uploadingReport: 'Uploading & Saving...',
+    autoUploadLabel: 'Auto-upload & save report upon completion',
+    autoUploadBadge: 'Auto-save enabled',
+    autoSavedToast: 'Report automatically uploaded & saved to server ({id})',
+    viewReportBtn: 'View Snapshot',
     uploadModalTitle: 'Report Successfully Uploaded & Saved to Local File',
     uploadModalDesc: 'All diagnostic data from this test has been assigned a unique ID and saved to the server local file system. Anyone with the restore link can inspect and verify the full results:',
     reportUniqueId: 'Unique Report ID',
@@ -782,6 +794,10 @@ export const translations: Record<SupportedLang, Translations> = {
     // Upload & Local File Persistence & Restore
     uploadReportBtn: 'إرسال وحفظ التقرير',
     uploadingReport: 'جاري الإرسال والحفظ...',
+    autoUploadLabel: 'إرسال وحفظ التقرير تلقائياً بعد الفحص',
+    autoUploadBadge: 'الحفظ التلقائي مفعّل',
+    autoSavedToast: 'تم إرسال وحفظ التقرير تلقائياً على الخادم ({id})',
+    viewReportBtn: 'عرض اللقطة',
     uploadModalTitle: 'تم إرسال التقرير وحفظه في ملف محلي بنجاح',
     uploadModalDesc: 'تم تعيين معرّف فريد لكافة بيانات الفحص وحفظها في ملف محلي على الخادم. يمكن لأي شخص استخدام رابط الاسترجاع لمعاينة النتائج بالكامل:',
     reportUniqueId: 'معرّف التقرير الفريد (ID)',
