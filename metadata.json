@@ -1,0 +1,6 @@
+{
+  "name": "DNS & Server Connectivity Checker",
+  "description": "检测用户输入的多个域名和服务器连接地址，分析 DNS 解析与连接状态，并在失败时展示具体错误原因",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

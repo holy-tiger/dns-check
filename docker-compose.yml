@@ -1,0 +1,23 @@
+services:
+  network-checker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: network-checker
+    restart: unless-stopped
+    ports:
+      # 宿主机端口:容器内服务端口（默认 3000，可通过环境变量自定义）
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - REPORTS_DIR=/app/data/reports
+    volumes:
+      # 核心要求：将容器内上报保存的检测报告目录持久化映射到宿主机 ./data/reports
+      - ./data/reports:/app/data/reports
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

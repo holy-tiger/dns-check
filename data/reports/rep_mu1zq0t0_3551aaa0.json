@@ -1,0 +1,54 @@
+{
+  "id": "rep_mu1zq0t0_3551aaa0",
+  "createdAt": 1789435547029,
+  "title": "Network Diagnostic Report",
+  "targets": [
+    "cloudflare.com"
+  ],
+  "timeoutMs": 5000,
+  "total": 1,
+  "okCount": 1,
+  "failedCount": 0,
+  "avgTimeMs": 0,
+  "results": [
+    {
+      "id": "t1",
+      "inputUrl": "cloudflare.com",
+      "hostname": "cloudflare.com",
+      "port": 443,
+      "status": "ok",
+      "summary": "All checks passed",
+      "details": {
+        "dns": {
+          "status": "ok",
+          "timeMs": 8,
+          "addresses": [
+            "1.1.1.1"
+          ]
+        },
+        "tcp": {
+          "status": "ok",
+          "timeMs": 25
+        },
+        "tls": {
+          "status": "ok",
+          "timeMs": 18,
+          "valid": true
+        },
+        "http": {
+          "status": "ok",
+          "timeMs": 50,
+          "statusCode": 200
+        }
+      }
+    }
+  ],
+  "clientInfo": {
+    "userAgent": "curl/7.88.1",
+    "ip": "1.1.1.1",
+    "country": "Australia",
+    "countryCode": "AU",
+    "region": "Queensland",
+    "city": "South Brisbane"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "id": "rep_mu1z8sd1_38f5d42d",
+  "createdAt": 1789434742933,
+  "title": "Network Diagnostic Report",
+  "targets": [
+    "github.com"
+  ],
+  "timeoutMs": 5000,
+  "total": 1,
+  "okCount": 1,
+  "failedCount": 0,
+  "avgTimeMs": 0,
+  "results": [
+    {
+      "id": "t1",
+      "inputUrl": "github.com",
+      "hostname": "github.com",
+      "port": 443,
+      "status": "ok",
+      "summary": "All checks passed",
+      "details": {
+        "dns": {
+          "status": "ok",
+          "timeMs": 12,
+          "addresses": [
+            "140.82.121.4"
+          ]
+        },
+        "tcp": {
+          "status": "ok",
+          "timeMs": 45
+        },
+        "tls": {
+          "status": "ok",
+          "timeMs": 20,
+          "valid": true
+        },
+        "http": {
+          "status": "ok",
+          "timeMs": 60,
+          "statusCode": 200
+        }
+      }
+    }
+  ],
+  "clientInfo": {
+    "userAgent": "curl/7.88.1",
+    "ip": "127.0.0.1"
+  }
+}
