@@ -9,9 +9,12 @@ import http from 'http';
 import https from 'https';
 import { URL } from 'url';
 import { createServer as createViteServer } from 'vite';
+import { resolveHostRecords } from './src/server/dnsResolve';
 
 const app = express();
-const PORT = 3000;
+// Defaults to 3000 (as docker-compose and the Dockerfile expect) but can be
+// overridden, which also lets a second instance run on a spare port for testing.
+const PORT = Number(process.env.PORT) || 3000;
 
 // Trust reverse proxies (nginx, Cloud Run, Docker, CDN) to accurately read client IP
 app.set('trust proxy', true);
@@ -70,28 +73,6 @@ function parseTarget(input: string): TargetParsed {
     pathname: parsed.pathname || '/',
     isIp,
   };
-}
-
-// Timeout promise wrapper
-function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMsg: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      const err = new Error(timeoutMsg);
-      (err as unknown as { code: string }).code = 'ETIMEDOUT';
-      reject(err);
-    }, ms);
-
-    promise.then(
-      (res) => {
-        clearTimeout(timer);
-        resolve(res);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      }
-    );
-  });
 }
 
 type StepStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped';
@@ -411,64 +392,22 @@ async function performDnsCheck(hostname: string, customDns?: string, timeoutMs: 
   }
 
   try {
-    const resolver = customDns && customDns.trim()
-      ? new dns.promises.Resolver()
-      : dns.promises;
-
-    if (customDns && customDns.trim() && resolver instanceof dns.promises.Resolver) {
-      resolver.setServers([customDns.trim()]);
+    const customDnsServer = customDns?.trim();
+    const resolver = customDnsServer ? new dns.promises.Resolver() : dns.promises;
+    if (resolver instanceof dns.promises.Resolver && customDnsServer) {
+      resolver.setServers([customDnsServer]);
     }
 
-    const dnsPromise = (async () => {
-      let aRecords: string[] = [];
-      let aaaaRecords: string[] = [];
-      let cnameRecords: string[] = [];
-
-      try {
-        aRecords = await resolver.resolve4(hostname);
-      } catch (e: unknown) {
-        const err = e as { code?: string };
-        // If nodata, it just means no IPv4
-        if (err.code !== 'ENODATA' && err.code !== 'ENOTFOUND') {
-          // If another fatal error, we might still check AAAA or rethrow
-        }
-      }
-
-      try {
-        aaaaRecords = await resolver.resolve6(hostname);
-      } catch {
-        // optional IPv6
-      }
-
-      try {
-        cnameRecords = await resolver.resolveCname(hostname);
-      } catch {
-        // optional CNAME
-      }
-
-      // If both A and AAAA failed, try fallback lookup
-      if (aRecords.length === 0 && aaaaRecords.length === 0) {
-        const lookupRes = await dns.promises.lookup(hostname, { all: true });
-        for (const item of lookupRes) {
-          if (item.family === 4) aRecords.push(item.address);
-          if (item.family === 6) aaaaRecords.push(item.address);
-        }
-      }
-
-      if (aRecords.length === 0 && aaaaRecords.length === 0) {
-        const notFoundErr = new Error(`无法找到该域名的 IP 记录 (NXDOMAIN / ENOTFOUND)`);
-        (notFoundErr as unknown as { code: string }).code = 'ENOTFOUND';
-        throw notFoundErr;
-      }
-
-      return {
-        a: aRecords,
-        aaaa: aaaaRecords,
-        cname: cnameRecords,
-      };
-    })();
-
-    const records = await withTimeout(dnsPromise, timeoutMs, `DNS 查询超时 (${timeoutMs}ms)`);
+    const records = await resolveHostRecords({
+      hostname,
+      resolver,
+      timeoutMs,
+      // A pinned DNS server is the thing under test, so never answer it from
+      // the system resolver (which also serves /etc/hosts) instead.
+      systemLookup: customDnsServer
+        ? undefined
+        : (host) => dns.promises.lookup(host, { all: true }),
+    });
     const timeMs = Date.now() - startTime;
     const resolvedIp = records.a[0] || records.aaaa[0];
 
@@ -493,6 +432,12 @@ async function performDnsCheck(hostname: string, customDns?: string, timeoutMs: 
         break;
       case 'ETIMEDOUT':
         humanReason = `${SERVER_I18N.dns.timeoutReason[lang] || SERVER_I18N.dns.timeoutReason.zh} (${timeoutMs}ms)`;
+        suggestion = SERVER_I18N.dns.timeoutSuggestion[lang] || SERVER_I18N.dns.timeoutSuggestion.zh;
+        break;
+      // c-ares reports its own resolver-side timeout as ETIMEOUT, which is a
+      // different event from our budget expiring: the resolver never answered.
+      case 'ETIMEOUT':
+        humanReason = SERVER_I18N.dns.timeoutReason[lang] || SERVER_I18N.dns.timeoutReason.zh;
         suggestion = SERVER_I18N.dns.timeoutSuggestion[lang] || SERVER_I18N.dns.timeoutSuggestion.zh;
         break;
       case 'ESERVFAIL':
@@ -1480,6 +1425,28 @@ app.get('/api/reports', async (req, res) => {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// API endpoint: client IP + coarse geo info, shown on the results page
+app.get('/api/client-info', async (req, res) => {
+  try {
+    const detectedIp = extractClientIp(req);
+    const isPrivateOrLocal = isPrivateOrLocalIp(detectedIp);
+    const geo = await resolveClientGeoInfo(detectedIp);
+
+    return res.json({
+      success: true,
+      ip: detectedIp,
+      isPrivateOrLocal,
+      country: geo.country,
+      countryCode: geo.countryCode,
+      region: geo.region,
+      city: geo.city,
+    });
+  } catch (err: unknown) {
+    console.error('Client info error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to resolve client info' });
+  }
 });
 
 // Debug endpoint: inspect resolved client IP and proxy headers
