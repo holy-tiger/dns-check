@@ -50,6 +50,26 @@ export const DiagnosticReportModal: React.FC<DiagnosticReportModalProps> = ({
         lines.push(`- **Troubleshooting**: ${r.solutionSuggestion}`);
       }
       lines.push(`- **Pipeline**:`);
+      if (r.steps?.client?.status && r.steps.client.status !== 'pending') {
+        lines.push(`  * ${t.clientStage}: ${r.steps.client.status} (${r.steps.client.timeMs ?? 0}ms)`);
+        const probe = r.clientProbe;
+        if (probe?.failureMode) {
+          const modeText =
+            probe.failureMode === 'fast'
+              ? t.clientProbeModeFast
+              : probe.failureMode === 'timeout'
+              ? t.clientProbeModeTimeout
+              : t.clientProbeModeUnknown;
+          lines.push(`    - ${t.clientProbeFailureMode}: ${modeText}`);
+        }
+        if (probe?.baseline) {
+          lines.push(
+            `    - ${t.clientProbeBaselineTitle}: ${
+              probe.baseline.ok ? t.clientProbeBaselineOk : t.clientProbeBaselineFailed
+            } (${probe.baseline.timeMs}ms)`
+          );
+        }
+      }
       lines.push(`  * ${t.dnsStage}: ${r.steps?.dns?.status ?? 'pending'} (${r.steps?.dns?.timeMs ?? 0}ms)`);
       lines.push(`  * ${t.tcpStage}: ${r.steps?.tcp?.status ?? 'pending'} (${r.steps?.tcp?.timeMs ?? 0}ms)`);
       lines.push(`  * ${t.tlsStage}: ${r.steps?.tls?.status ?? 'pending'} (${r.steps?.tls?.timeMs ?? 0}ms)`);

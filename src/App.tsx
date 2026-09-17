@@ -7,11 +7,123 @@ import { DiagnosticReportModal } from './components/DiagnosticReportModal';
 import { ShareLinkModal } from './components/ShareLinkModal';
 import { UploadReportModal } from './components/UploadReportModal';
 import { LoadReportModal } from './components/LoadReportModal';
-import { CheckResult, SupportedLang, SavedReport, ReportUploadResponse } from './types';
+import {
+  CheckResult,
+  SupportedLang,
+  SavedReport,
+  ReportUploadResponse,
+  ClientInfoResponse,
+  ClientProbeDiagnosis,
+  ClientProbeResult,
+} from './types';
 import { normalizeCheckResult } from './utils/normalizeResult';
 import { detectShareLinkView } from './utils/detectShareLinkView';
-import { translations, getInitialLanguage, applyDocumentLanguage, tFormat } from './i18n';
+import { probeResultsInBrowser, probeTargetFromBrowser } from './utils/clientProbe';
+import { translations, getInitialLanguage, applyDocumentLanguage, tFormat, Translations } from './i18n';
 import { Activity, ShieldAlert, WifiOff, FileText, RotateCw, X, Globe, MapPin } from 'lucide-react';
+
+const CLIENT_REASON_KEYS: Record<ClientProbeDiagnosis, keyof Translations> = {
+  reachable: 'clientProbeReasonReachable',
+  'resolution-failed': 'clientProbeReasonResolutionFailed',
+  'network-blocked': 'clientProbeReasonNetworkBlocked',
+  'unresolved-elsewhere': 'clientProbeReasonUnresolvedElsewhere',
+  'network-down': 'clientProbeReasonNetworkDown',
+  'doh-blocked': 'clientProbeReasonDohBlocked',
+  unknown: 'clientProbeReasonUnknown',
+  skipped: 'clientProbeSkippedText',
+};
+
+/**
+ * Outcomes that pin the failure on something specific. Everything else is an
+ * honest "could not tell", which must not overwrite a clear server verdict.
+ */
+const CONCLUSIVE_CLIENT_DIAGNOSES: ClientProbeDiagnosis[] = [
+  'resolution-failed',
+  'network-blocked',
+  'unresolved-elsewhere',
+];
+
+/** The visitor-side stage while the probe is still in flight. */
+function runningClientStep(t: Translations): CheckResult['steps']['client'] {
+  return { name: t.clientStage, status: 'running', timeMs: 0 };
+}
+
+/**
+ * Merges a probe made by the visitor's browser into the server-side result.
+ *
+ * The visitor's own measurement is what describes their experience, so it
+ * decides the headline verdict; the server's four stages stay in the report as
+ * context. The exceptions are deliberate: an inconclusive browser probe never
+ * overwrites a verdict the server could establish, and a target the visitor can
+ * open is never reported as broken just because the server's network cannot
+ * reach it.
+ */
+function applyClientProbe(
+  result: CheckResult,
+  probe: ClientProbeResult | undefined,
+  t: Translations
+): CheckResult {
+  const step: CheckResult['steps']['client'] = probe
+    ? {
+        name: t.clientStage,
+        status: probe.skipped ? 'skipped' : probe.ok ? 'success' : 'failed',
+        timeMs: probe.timeMs,
+        summary: probe.skipped ? t.clientProbeSkippedText : undefined,
+        error: probe.error,
+      }
+    : { name: t.clientStage, status: 'skipped', timeMs: 0, summary: t.clientProbeSkippedText };
+
+  const next: CheckResult = {
+    ...result,
+    steps: { ...result.steps, client: step },
+    clientProbe: probe,
+  };
+
+  // Nothing was measured, so the server-side verdict has to stand on its own.
+  if (!probe || probe.skipped) return next;
+
+  const reason = String(t[CLIENT_REASON_KEYS[probe.diagnosis]]);
+
+  if (probe.ok) {
+    next.summary = `${t.clientStage}: ${t.clientProbeOkText}`;
+    if (result.status !== 'ok') {
+      // The visitor can open a target the server could not. That reads as "your
+      // site is down" on a server-only report, so say whose network is at fault.
+      next.status = 'warning';
+      next.errorCategory = 'CLIENT';
+      next.errorReason = t.clientProbeReasonServerOnly;
+      next.solutionSuggestion = t.clientProbeServerOnlySuggestion;
+    }
+    return next;
+  }
+
+  if (CONCLUSIVE_CLIENT_DIAGNOSES.includes(probe.diagnosis)) {
+    // "unresolved-elsewhere" means the name has no usable record at all, so the
+    // target is genuinely broken for everybody; the other two describe a
+    // visitor-side problem and use the amber "it's you, not the site" tone.
+    const isDomainAtFault = probe.diagnosis === 'unresolved-elsewhere';
+    next.status = isDomainAtFault ? 'error' : 'warning';
+    next.errorCategory = isDomainAtFault ? 'DNS' : 'CLIENT';
+    next.errorReason = reason;
+    next.solutionSuggestion = t.clientProbeSuggestion;
+    next.rawError = probe.error;
+    next.summary = `${t.clientStage}: ${t.clientProbeFailedText}`;
+    return next;
+  }
+
+  // Inconclusive from the browser's side: keep whatever the server established,
+  // but never leave a green tick on a target this visitor cannot open.
+  if (result.status === 'ok') {
+    next.status = 'warning';
+    next.errorCategory = 'CLIENT';
+    next.errorReason = reason;
+    next.solutionSuggestion = t.clientProbeSuggestion;
+    next.rawError = probe.error;
+    next.summary = `${t.clientStage}: ${t.clientProbeFailedText}`;
+  }
+
+  return next;
+}
 
 export default function App() {
   const [currentLang, setCurrentLang] = useState<SupportedLang>(() => getInitialLanguage());
@@ -39,8 +151,16 @@ export default function App() {
   const [autoUploadEnabled, setAutoUploadEnabled] = useState(true);
   const [autoUploadSuccessToast, setAutoUploadSuccessToast] = useState<{ id: string; viewUrl: string } | null>(null);
 
+  // Visitor's own public IP, resolved once a detection run produced results
+  const [clientInfo, setClientInfo] = useState<ClientInfoResponse | null>(null);
+  const clientInfoRequestedRef = useRef(false);
+
   // Avoid running autostart twice
   const hasAutoStartedRef = useRef(false);
+
+  // Monotonic run id: a slow visitor-side probe must never overwrite the
+  // results of a newer run started while it was still in flight.
+  const runIdRef = useRef(0);
 
   // True when this page was opened from a generated share link (test link or report link)
   const [isSharedLinkView, setIsSharedLinkView] = useState<boolean>(detectShareLinkView);
@@ -64,6 +184,31 @@ export default function App() {
     const timer = setTimeout(() => setAutoUploadSuccessToast(null), 6000);
     return () => clearTimeout(timer);
   }, [autoUploadSuccessToast]);
+
+  // Resolve the visitor's own IP (and coarse location) as soon as results are on screen.
+  // Runs once per page load: the value is a property of the browser session, not of a single run.
+  useEffect(() => {
+    if (results.length === 0 || clientInfoRequestedRef.current) return;
+    clientInfoRequestedRef.current = true;
+
+    fetch('/api/client-info')
+      .then((res) => {
+        if (!res.ok) throw new Error(`Client info request failed (${res.status})`);
+        return res.json() as Promise<ClientInfoResponse>;
+      })
+      .then((data) => {
+        if (data && data.ip) {
+          setClientInfo(data);
+        } else {
+          // Allow a later retry when another run produces results
+          clientInfoRequestedRef.current = false;
+        }
+      })
+      .catch((err: unknown) => {
+        console.error('Failed to resolve client IP:', err);
+        clientInfoRequestedRef.current = false;
+      });
+  }, [results.length]);
 
   // Handle language switch
   const handleLanguageChange = (newLang: SupportedLang) => {
@@ -235,6 +380,7 @@ export default function App() {
     setCurrentTimeout(timeoutMs);
 
     const langToUse = langOverride || currentLang;
+    const runId = ++runIdRef.current;
 
     try {
       const response = await fetch('/api/check', {
@@ -255,11 +401,30 @@ export default function App() {
 
       const data = await response.json();
       if (data.results && Array.isArray(data.results)) {
-        const normalizedResults = data.results.map((r: unknown, i: number) => normalizeCheckResult(r, i));
-        setResults(normalizedResults);
+        const langT = translations[langToUse];
+        const normalizedResults: CheckResult[] = data.results.map((r: unknown, i: number) =>
+          normalizeCheckResult(r, i)
+        );
+
+        // Show the server-side verdict immediately, with the visitor-side stage
+        // still spinning...
+        setResults(
+          normalizedResults.map((r) => ({
+            ...r,
+            steps: { ...r.steps, client: runningClientStep(langT) },
+          }))
+        );
+        setIsLoading(false);
+
+        // ...then fill it in with what this browser can actually reach.
+        const probes = await probeResultsInBrowser(normalizedResults);
+        if (runId !== runIdRef.current) return;
+        const mergedResults = normalizedResults.map((r) => applyClientProbe(r, probes.get(r.id), langT));
+        setResults(mergedResults);
+
         if (autoUploadEnabled) {
-          const targetsList = normalizedResults.map((r) => r.inputUrl || r.hostname);
-          await uploadReport(normalizedResults, targetsList, customDns, timeoutMs, true);
+          const targetsList = mergedResults.map((r) => r.inputUrl || r.hostname);
+          await uploadReport(mergedResults, targetsList, customDns, timeoutMs, true);
         }
       }
     } catch (err: unknown) {
@@ -272,6 +437,7 @@ export default function App() {
 
   const handleSingleRetest = async (targetUrl: string) => {
     setRetestingId(targetUrl);
+    const runId = ++runIdRef.current;
     try {
       const response = await fetch('/api/check-one', {
         method: 'POST',
@@ -287,11 +453,23 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         if (data.result) {
+          const langT = translations[currentLang];
           const normalized = normalizeCheckResult(data.result);
-          const nextResults = results.map((item) =>
-            item.inputUrl === targetUrl ? normalized : item
+          const runningResults = results.map((item) =>
+            item.inputUrl === targetUrl
+              ? { ...normalized, steps: { ...normalized.steps, client: runningClientStep(langT) } }
+              : item
+          );
+          setResults(runningResults);
+
+          const probe = await probeTargetFromBrowser(normalized);
+          if (runId !== runIdRef.current) return;
+          const probed = applyClientProbe(normalized, probe, langT);
+          const nextResults = runningResults.map((item) =>
+            item.inputUrl === targetUrl ? probed : item
           );
           setResults(nextResults);
+
           if (autoUploadEnabled) {
             const targetsList = nextResults.map((r) => r.inputUrl || r.hostname);
             await uploadReport(nextResults, targetsList, activeDnsServer, currentTimeout, true);
@@ -306,6 +484,17 @@ export default function App() {
   };
 
   const t = translations[currentLang];
+
+  // Location text for the visitor's IP chip. The server returns locale-neutral codes
+  // (LAN / UNKNOWN) so the wording stays translatable on the client.
+  const clientGeoLabel = (() => {
+    if (!clientInfo) return '';
+    if (clientInfo.countryCode === 'LAN') return t.clientIpLocalNetwork;
+    if (!clientInfo.country || clientInfo.countryCode === 'UNKNOWN') return t.clientIpUnknownLocation;
+    return clientInfo.region && clientInfo.region !== clientInfo.country
+      ? `${clientInfo.country} (${clientInfo.region})`
+      : clientInfo.country;
+  })();
 
   const handleCopySummary = () => {
     const total = results.length;
@@ -524,13 +713,35 @@ export default function App() {
         {/* Results List */}
         {!isLoading && results.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-3 px-1">
-              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-2">
-                <span>{t.resultsListTitle}</span>
-                <span className="text-xs text-slate-400 font-normal">
-                  ({tFormat(t.showingCount, { current: filteredResults.length, total: results.length })})
-                </span>
-              </h2>
+            <div className="flex items-center justify-between gap-3 mb-3 px-1 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-2">
+                  <span>{t.resultsListTitle}</span>
+                  <span className="text-xs text-slate-400 font-normal">
+                    ({tFormat(t.showingCount, { current: filteredResults.length, total: results.length })})
+                  </span>
+                </h2>
+
+                {/* Visitor's own public IP, so shared-link recipients can confirm which network the run came from */}
+                {clientInfo && clientInfo.ip && (
+                  <>
+                    <span
+                      id="client-ip-chip"
+                      title={t.clientIpTitle}
+                      className="inline-flex items-center gap-1 font-mono text-[11px] text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs"
+                    >
+                      <Globe className="w-3 h-3 text-blue-500 shrink-0" />
+                      <span>{clientInfo.ip}</span>
+                    </span>
+                    {clientGeoLabel && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                        <MapPin className="w-3 h-3 text-emerald-500 shrink-0" />
+                        <span>{clientGeoLabel}</span>
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
 
               <button
                 id="view-full-report-btn"

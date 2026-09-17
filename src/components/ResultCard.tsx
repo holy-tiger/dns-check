@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   Server,
+  Monitor,
   ChevronDown,
   ChevronUp,
   RotateCcw,
@@ -41,6 +42,65 @@ export const ResultCard: React.FC<ResultCardProps> = ({
   const isFailed = result.status === 'error';
   const isWarning = result.status === 'warning';
   const isOk = result.status === 'ok';
+  const isClientIssue = result.errorCategory === 'CLIENT';
+
+  // A visitor-side failure is a warning rather than a broken target, so it uses
+  // an amber tone to read differently from "the service itself is down".
+  const calloutTone = isClientIssue
+    ? {
+        box: 'bg-amber-50/80 border-amber-200 text-amber-950',
+        icon: 'text-amber-600',
+        label: 'text-amber-700 bg-amber-100',
+        stage: 'text-amber-700',
+        title: 'text-amber-900',
+        suggestion: 'text-amber-800 bg-white/80 border-amber-200/70',
+        raw: 'text-amber-700',
+        pre: 'bg-amber-100/70 text-amber-900',
+      }
+    : {
+        box: 'bg-rose-50/80 border-rose-200 text-rose-950',
+        icon: 'text-rose-600',
+        label: 'text-rose-700 bg-rose-100',
+        stage: 'text-rose-600',
+        title: 'text-rose-900',
+        suggestion: 'text-rose-800 bg-white/80 border-rose-200/70',
+        raw: 'text-rose-700',
+        pre: 'bg-rose-100/70 text-rose-900',
+      };
+
+  // Compact summary of the public-DNS cross-check that ran from this network.
+  const dohSummary = (() => {
+    const probe = result.clientProbe;
+    if (!probe || probe.doh.length === 0) return '';
+    const best =
+      probe.doh.find((item) => item.ok && (item.addresses?.length ?? 0) > 0) ||
+      probe.doh.find((item) => item.ok) ||
+      probe.doh[0];
+    if (!best) return '';
+    if (!best.ok) return t.clientProbeDohUnreachable;
+    if ((best.addresses?.length ?? 0) > 0) return t.clientProbeDohReachable;
+    return best.status === 'NXDOMAIN' ? t.clientProbeDohNxdomain : t.clientProbeDohNoAddress;
+  })();
+
+  // How the failed request spent its time — the signal that separates "the local
+  // resolver refused the name" from "the packets were dropped on the way out".
+  const failureModeText = (() => {
+    const mode = result.clientProbe?.failureMode;
+    if (!mode) return '';
+    if (mode === 'fast') return t.clientProbeModeFast;
+    if (mode === 'timeout') return t.clientProbeModeTimeout;
+    return t.clientProbeModeUnknown;
+  })();
+
+  // A visitor-side failure is stated as precisely as the evidence allows, so the
+  // badge reads "your DNS looks blocked" instead of a generic "unreachable".
+  const clientBadgeLabel = (() => {
+    const diagnosis = result.clientProbe?.diagnosis;
+    if (diagnosis === 'resolution-failed') return t.clientProbeBadgeResolverBlocked;
+    if (diagnosis === 'network-blocked') return t.clientProbeBadgeNetworkBlocked;
+    if (diagnosis === 'network-down') return t.clientProbeBadgeNetworkDown;
+    return t.clientProbeBadge;
+  })();
 
   const handleCopySingle = () => {
     const lines = [
@@ -57,6 +117,19 @@ export const ResultCard: React.FC<ResultCardProps> = ({
     }
     if (result.resolvedIp) {
       lines.push(`[Resolved IP]: ${result.resolvedIp}`);
+    }
+    if (result.steps?.client?.status && result.steps.client.status !== 'pending') {
+      lines.push(`- ${t.clientStage}: ${result.steps.client.status} (${result.steps.client.timeMs ?? 0}ms)`);
+      if (failureModeText) {
+        lines.push(`  * ${t.clientProbeFailureMode}: ${failureModeText}`);
+      }
+      if (result.clientProbe?.baseline) {
+        lines.push(
+          `  * ${t.clientProbeBaselineTitle}: ${
+            result.clientProbe.baseline.ok ? t.clientProbeBaselineOk : t.clientProbeBaselineFailed
+          } (${result.clientProbe.baseline.timeMs}ms)`
+        );
+      }
     }
     if (result.steps?.dns?.status) {
       lines.push(`- DNS: ${result.steps.dns.status} (${result.steps.dns.timeMs ?? 0}ms)`);
@@ -82,6 +155,16 @@ export const ResultCard: React.FC<ResultCardProps> = ({
         <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
           <span>{t.statusHealthy}</span>
+        </span>
+      );
+    }
+    // Server side is healthy, but the visitor's own browser could not reach the
+    // target: this is the case the old report used to hide behind a green tick.
+    if (result.errorCategory === 'CLIENT') {
+      return (
+        <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+          <span>{clientBadgeLabel}</span>
         </span>
       );
     }
@@ -129,11 +212,14 @@ export const ResultCard: React.FC<ResultCardProps> = ({
     title: string,
     icon: React.ReactNode,
     step?: DiagnosticStep,
-    extraInfo?: React.ReactNode
+    extraInfo?: React.ReactNode,
+    skippedLabel?: string
   ) => {
     const isStepOk = step?.status === 'success';
     const isStepFailed = step?.status === 'failed';
-    const isStepSkipped = !step || step.status === 'skipped' || step.status === 'pending';
+    const isStepRunning = step?.status === 'running';
+    const isStepSkipped =
+      !step || step.status === 'skipped' || step.status === 'pending';
 
     return (
       <div className={`flex-1 min-w-[130px] p-2.5 rounded-xl border transition-all ${
@@ -150,6 +236,9 @@ export const ResultCard: React.FC<ResultCardProps> = ({
           </div>
           {isStepOk && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
           {isStepFailed && <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+          {isStepRunning && (
+            <span className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
+          )}
           {isStepSkipped && <span className="text-[10px] text-slate-400">{t.skipped}</span>}
         </div>
 
@@ -165,7 +254,12 @@ export const ResultCard: React.FC<ResultCardProps> = ({
               {t.stepFailed} ({step?.timeMs ?? 0}ms)
             </div>
           )}
-          {isStepSkipped && <div className="text-slate-400 text-[11px]">{t.skipped}</div>}
+          {isStepRunning && <div className="text-blue-600 text-[11px]">{t.clientProbeRunning}</div>}
+          {isStepSkipped && (
+            <div className="text-slate-400 text-[11px]" title={step?.error}>
+              {step?.summary || skippedLabel || t.skipped}
+            </div>
+          )}
         </div>
 
         {extraInfo && <div className="mt-1.5 pt-1.5 border-t border-slate-200/60 text-[11px]">{extraInfo}</div>}
@@ -244,39 +338,43 @@ export const ResultCard: React.FC<ResultCardProps> = ({
 
         {/* SPECIFIC ERROR REASON CALLOUT BOX (Required by User) */}
         {(isFailed || isWarning) && result.errorReason && (
-          <div className="mt-3 mb-4 rounded-xl border p-4 bg-rose-50/80 border-rose-200 text-rose-950 animate-in fade-in duration-200">
+          <div className={`mt-3 mb-4 rounded-xl border p-4 animate-in fade-in duration-200 ${calloutTone.box}`}>
             <div className="flex items-start space-x-3">
-              <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              {isClientIssue ? (
+                <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${calloutTone.icon}`} />
+              ) : (
+                <XCircle className={`w-5 h-5 shrink-0 mt-0.5 ${calloutTone.icon}`} />
+              )}
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <span className="text-xs font-bold uppercase tracking-wider text-rose-700 bg-rose-100 px-2 py-0.5 rounded">
+                  <span className={`text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded ${calloutTone.label}`}>
                     {t.errorReasonLabel}
                   </span>
                   {result.errorCategory && (
-                    <span className="text-xs font-medium text-rose-600">
-                      {t.stage}: {result.errorCategory}
+                    <span className={`text-xs font-medium ${calloutTone.stage}`}>
+                      {t.stage}: {isClientIssue ? t.clientStage : result.errorCategory}
                     </span>
                   )}
                 </div>
 
-                <p className="text-sm font-semibold text-rose-900 mt-0.5">
+                <p className={`text-sm font-semibold mt-0.5 ${calloutTone.title}`}>
                   {result.errorReason}
                 </p>
 
                 {result.solutionSuggestion && (
-                  <div className="mt-2 text-xs text-rose-800 bg-white/80 border border-rose-200/70 rounded-lg p-2.5 flex items-start space-x-2">
-                    <HelpCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                  <div className={`mt-2 text-xs border rounded-lg p-2.5 flex items-start space-x-2 ${calloutTone.suggestion}`}>
+                    <HelpCircle className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${calloutTone.icon}`} />
                     <div>
-                      <span className="font-semibold text-rose-900 mr-1">{t.suggestionLabel}:</span>
+                      <span className={`font-semibold mr-1 ${calloutTone.title}`}>{t.suggestionLabel}:</span>
                       {result.solutionSuggestion}
                     </div>
                   </div>
                 )}
 
                 {result.rawError && (
-                  <details className="mt-2 text-[11px] text-rose-700 cursor-pointer">
+                  <details className={`mt-2 text-[11px] cursor-pointer ${calloutTone.raw}`}>
                     <summary className="font-mono hover:underline">{t.rawSystemError}</summary>
-                    <pre className="mt-1 p-2 rounded bg-rose-100/70 font-mono text-[11px] whitespace-pre-wrap overflow-x-auto text-rose-900">
+                    <pre className={`mt-1 p-2 rounded font-mono text-[11px] whitespace-pre-wrap overflow-x-auto ${calloutTone.pre}`}>
                       {result.rawError}
                     </pre>
                   </details>
@@ -287,7 +385,24 @@ export const ResultCard: React.FC<ResultCardProps> = ({
         )}
 
         {/* Diagnostic Pipeline Stages */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 mb-2">
+          {/* Stage 0: the visitor's own browser (measured client side) */}
+          {renderStepItem(
+            t.clientStage,
+            <Monitor className="w-3.5 h-3.5 text-cyan-600" />,
+            result.steps?.client,
+            result.clientProbe && !result.clientProbe.skipped ? (
+              <span className="block truncate text-slate-500" title={result.clientProbe.url}>
+                {failureModeText
+                  ? failureModeText
+                  : dohSummary
+                  ? `${t.clientProbeDohShort}: ${dohSummary}`
+                  : `${t.clientProbeElapsed}: ${result.clientProbe.timeMs}ms`}
+              </span>
+            ) : undefined,
+            t.clientProbeSkippedText
+          )}
+
           {/* Stage 1: DNS */}
           {renderStepItem(
             t.dnsStage,
@@ -372,6 +487,110 @@ export const ResultCard: React.FC<ResultCardProps> = ({
       {/* Expanded Technical Details Drawer */}
       {isExpanded && (
         <div className="bg-slate-50 border-t border-slate-200/80 p-4 sm:p-5 text-xs text-slate-700 space-y-4 animate-in fade-in duration-150">
+          {/* Visitor-side (browser) measurement */}
+          {result.clientProbe && (
+            <div>
+              <h4 className="font-semibold text-slate-800 flex items-center space-x-1.5 mb-2">
+                <Monitor className="w-3.5 h-3.5 text-cyan-600" />
+                <span>{t.clientProbeDetailTitle}</span>
+              </h4>
+              <div className="bg-white rounded-lg border border-slate-200 p-3 space-y-2">
+                <p className="text-[11px] text-slate-500">{t.clientProbeDesc}</p>
+
+                <div>
+                  <span className="text-slate-400 inline-block w-28">{t.clientProbeTargetUrl}:</span>
+                  <span className="font-mono text-slate-800 break-all">{result.clientProbe.url}</span>
+                </div>
+
+                <div>
+                  <span className="text-slate-400 inline-block w-28">{t.statusLabel}:</span>
+                  <span
+                    className={
+                      result.clientProbe.skipped
+                        ? 'text-slate-500'
+                        : result.clientProbe.ok
+                        ? 'text-emerald-700 font-medium'
+                        : 'text-amber-700 font-medium'
+                    }
+                  >
+                    {result.clientProbe.skipped
+                      ? t.clientProbeSkippedText
+                      : result.clientProbe.ok
+                      ? t.clientProbeOkText
+                      : t.clientProbeFailedText}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-slate-400 inline-block w-28">{t.clientProbeElapsed}:</span>
+                  <span className="font-mono text-slate-800">{result.clientProbe.timeMs} ms</span>
+                </div>
+
+                {failureModeText && (
+                  <div>
+                    <span className="text-slate-400 inline-block w-28">{t.clientProbeFailureMode}:</span>
+                    <span className="text-slate-800">{failureModeText}</span>
+                  </div>
+                )}
+
+                {result.clientProbe.error && (
+                  <div>
+                    <span className="text-slate-400 inline-block w-28">Error:</span>
+                    <span className="font-mono text-slate-600 break-all">{result.clientProbe.error}</span>
+                  </div>
+                )}
+
+                {result.clientProbe.baseline && (
+                  <div className="pt-1.5 border-t border-slate-100">
+                    <span className="text-slate-500 font-medium block mb-1">{t.clientProbeBaselineTitle}</span>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-mono text-slate-700 truncate">{result.clientProbe.baseline.url}</span>
+                      <span
+                        className={`font-mono ${
+                          result.clientProbe.baseline.ok ? 'text-emerald-700' : 'text-amber-700'
+                        }`}
+                      >
+                        {result.clientProbe.baseline.ok ? t.clientProbeBaselineOk : t.clientProbeBaselineFailed}
+                        {' · '}
+                        {result.clientProbe.baseline.timeMs}ms
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {result.clientProbe.doh.length > 0 && (
+                  <div className="pt-1.5 border-t border-slate-100">
+                    <span className="text-slate-500 font-medium block mb-1">{t.clientProbeDohTitle}</span>
+                    <div className="space-y-1">
+                      {result.clientProbe.doh.map((item) => (
+                        <div key={item.provider} className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="font-mono text-slate-700">
+                            {item.provider === 'google' ? 'dns.google (8.8.8.8)' : 'cloudflare-dns.com (1.1.1.1)'}
+                          </span>
+                          <span
+                            className={`font-mono ${
+                              item.ok && (item.addresses?.length ?? 0) > 0 ? 'text-emerald-700' : 'text-amber-700'
+                            }`}
+                          >
+                            {!item.ok
+                              ? t.clientProbeDohUnreachable
+                              : (item.addresses?.length ?? 0) > 0
+                              ? item.addresses.join(', ')
+                              : item.status === 'NXDOMAIN'
+                              ? t.clientProbeDohNxdomain
+                              : t.clientProbeDohNoAddress}
+                            {' · '}
+                            {item.timeMs}ms
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* DNS Records */}
           <div>
             <h4 className="font-semibold text-slate-800 flex items-center space-x-1.5 mb-2">

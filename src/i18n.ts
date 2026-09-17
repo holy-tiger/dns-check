@@ -82,6 +82,9 @@ export interface Translations {
 
   // Results List
   resultsListTitle: string;
+  clientIpTitle: string;
+  clientIpLocalNetwork: string;
+  clientIpUnknownLocation: string;
   showingItems: string;
   showingCount: string;
   noMatchingItems: string;
@@ -210,6 +213,45 @@ export interface Translations {
   uploaderIpLabel: string;
   uploaderCountryLabel: string;
   uploaderLocationLabel: string;
+
+  // Visitor-side (browser) probe
+  clientStage: string;
+  clientStageName: string;
+  clientProbeBadge: string;
+  clientProbeBadgeResolverBlocked: string;
+  clientProbeBadgeNetworkBlocked: string;
+  clientProbeBadgeNetworkDown: string;
+  clientProbeDesc: string;
+  clientProbeOkText: string;
+  clientProbeFailedText: string;
+  clientProbeRunning: string;
+  clientProbeSkippedText: string;
+  clientProbeReasonReachable: string;
+  clientProbeReasonResolutionFailed: string;
+  clientProbeReasonUnresolvedElsewhere: string;
+  clientProbeReasonDohBlocked: string;
+  clientProbeReasonUnknown: string;
+  clientProbeSuggestion: string;
+  clientProbeDohTitle: string;
+  clientProbeDohShort: string;
+  clientProbeDohReachable: string;
+  clientProbeDohUnreachable: string;
+  clientProbeDohNxdomain: string;
+  clientProbeDohNoAddress: string;
+  clientProbeDetailTitle: string;
+  clientProbeTargetUrl: string;
+  clientProbeElapsed: string;
+  clientProbeFailureMode: string;
+  clientProbeModeFast: string;
+  clientProbeModeTimeout: string;
+  clientProbeModeUnknown: string;
+  clientProbeBaselineTitle: string;
+  clientProbeBaselineOk: string;
+  clientProbeBaselineFailed: string;
+  clientProbeReasonNetworkBlocked: string;
+  clientProbeReasonNetworkDown: string;
+  clientProbeReasonServerOnly: string;
+  clientProbeServerOnlySuggestion: string;
 }
 
 export const translations: Record<SupportedLang, Translations> = {
@@ -289,6 +331,9 @@ export const translations: Record<SupportedLang, Translations> = {
     viewMarkdownReport: '查看完整 Markdown 报告 →',
 
     resultsListTitle: '检测结果列表',
+    clientIpTitle: '您的出口 IP',
+    clientIpLocalNetwork: '局域网或本地回环',
+    clientIpUnknownLocation: '归属地未知',
     showingItems: '展示 {filtered} / {total} 项',
     showingCount: '展示 {current} / {total} 项',
     noMatchingItems: '未找到符合筛选条件的检测项',
@@ -332,6 +377,43 @@ export const translations: Record<SupportedLang, Translations> = {
     tlsStage: 'TLS 证书',
     httpStageName: 'HTTP 响应',
     httpStage: 'HTTP 响应',
+    clientStage: '本机连通性',
+    clientStageName: '本机连通性',
+    clientProbeBadge: '本机无法访问',
+    clientProbeBadgeResolverBlocked: '疑似本机 DNS 拦截',
+    clientProbeBadgeNetworkBlocked: '本机链路上被阻断',
+    clientProbeBadgeNetworkDown: '本机网络异常',
+    clientProbeDesc: '此项由你的浏览器直接向目标地址发起请求得到，代表你当前网络的实际访问结果（其余四项在服务器侧测量）。',
+    clientProbeOkText: '可访问',
+    clientProbeFailedText: '不可访问',
+    clientProbeRunning: '正在从你的浏览器实测…',
+    clientProbeSkippedText: '未实测',
+    clientProbeReasonReachable: '服务器与你的浏览器都能正常访问该地址。',
+    clientProbeReasonResolutionFailed: '服务器侧解析、握手、证书全部正常，但你的浏览器无法访问该地址；同时从你的网络发起、走加密 DNS（DoH）的公共解析器却能解析出该域名。说明域名与服务器没有问题，故障在你这一侧的解析或网络链路上（本地 DNS 缓存、路由器、运营商 DNS 劫持/限制或安全软件）。',
+    clientProbeReasonUnresolvedElsewhere: '服务器侧一切正常，但公共 DNS 从你的网络返回的却是“域名不存在”（NXDOMAIN）。说明你所在网络侧的域名解析被拦截或结果异常。',
+    clientProbeReasonDohBlocked: '你的浏览器无法访问该地址，且你的网络连公共 DNS（DoH）都无法访问，说明本机或运营商对 DNS 存在拦截或限制。',
+    clientProbeReasonUnknown: '你的浏览器无法访问该地址，且未能通过公共 DNS 交叉验证出具体原因。',
+    clientProbeSuggestion: '建议依次尝试：清除本机 DNS 缓存后重试 → 将系统或路由器 DNS 改为 1.1.1.1 / 8.8.8.8 → 开启「私人 DNS / 安全 DNS」（如 dns.google，可绕过 UDP 53 劫持）→ 使用 VPN 或换一个网络（如手机流量）重试。',
+    clientProbeDohTitle: '公共 DNS 对比（从你的网络发起）',
+    clientProbeDohShort: '公共 DNS',
+    clientProbeDohReachable: '可访问',
+    clientProbeDohUnreachable: '不可访问',
+    clientProbeDohNxdomain: '返回域名不存在 (NXDOMAIN)',
+    clientProbeDohNoAddress: '无 A 记录',
+    clientProbeDetailTitle: '本机实测（你的浏览器）',
+    clientProbeTargetUrl: '实测地址',
+    clientProbeElapsed: '实测耗时',
+    clientProbeFailureMode: '失败方式',
+    clientProbeModeFast: '瞬间失败（疑似被解析器直接拒绝）',
+    clientProbeModeTimeout: '超时失败（疑似数据包被丢弃）',
+    clientProbeModeUnknown: '未确定',
+    clientProbeBaselineTitle: '对照域名（判断你的网络本身是否正常）',
+    clientProbeBaselineOk: '可访问，网络正常',
+    clientProbeBaselineFailed: '不可访问，网络本身异常',
+    clientProbeReasonNetworkBlocked: '公共 DNS 从你的网络能正常解析出该域名，但浏览器请求是耗尽超时后才失败的，而不是被立即拒绝。这说明域名解析本身没有问题，失败发生在尝试连接之后——你的网络或运营商在 IP 层拦截、丢弃了发往该地址的数据包。',
+    clientProbeReasonNetworkDown: '连 example.com 这类公认全球可达的网站都无法从你的网络访问，说明当前网络本身就不通，无法据此判断目标域名是否被屏蔽。请先确认设备已正常联网后重试。',
+    clientProbeReasonServerOnly: '你的浏览器可以正常访问该地址，但服务器侧的检测没有通过。说明域名解析和你的网络都正常，差异来自服务器所在的网络环境（例如目标对服务器所在地做了访问限制）。',
+    clientProbeServerOnlySuggestion: '以你的浏览器实测结果为准：你当前可以正常访问该地址。服务器侧的失败仅代表服务器所在网络受限，与你的使用体验无关。',
     portLabel: '端口',
     port: '端口',
     expiredLabel: '已过期',
@@ -492,6 +574,9 @@ export const translations: Record<SupportedLang, Translations> = {
     viewMarkdownReport: 'View Full Markdown Report →',
 
     resultsListTitle: 'Diagnostic Results',
+    clientIpTitle: 'Your public IP',
+    clientIpLocalNetwork: 'LAN / local loopback',
+    clientIpUnknownLocation: 'Location unknown',
     showingItems: 'Showing {filtered} / {total} items',
     showingCount: 'Showing {current} / {total} items',
     noMatchingItems: 'No results match your filter criteria',
@@ -535,6 +620,43 @@ export const translations: Record<SupportedLang, Translations> = {
     tlsStage: 'TLS / SSL',
     httpStageName: 'HTTP Probe',
     httpStage: 'HTTP Probe',
+    clientStage: 'Your Browser',
+    clientStageName: 'Your Browser',
+    clientProbeBadge: 'Unreachable For You',
+    clientProbeBadgeResolverBlocked: 'Your DNS Looks Blocked',
+    clientProbeBadgeNetworkBlocked: 'Blocked On Your Path',
+    clientProbeBadgeNetworkDown: 'Your Network Is Down',
+    clientProbeDesc: 'Measured by your own browser requesting the target directly, so it reflects your current network. The other four stages are measured on the server.',
+    clientProbeOkText: 'Reachable',
+    clientProbeFailedText: 'Unreachable',
+    clientProbeRunning: 'Probing from your browser…',
+    clientProbeSkippedText: 'Not probed',
+    clientProbeReasonReachable: 'Both the server and your browser can reach this address.',
+    clientProbeReasonResolutionFailed: 'The server resolved, connected and validated the certificate, but your browser cannot reach this address, while public DNS queried over HTTPS from your own network resolves it. The domain and the server are fine: the failure is on your side of the connection — local DNS cache, router, carrier DNS interception/filtering, or security software.',
+    clientProbeReasonUnresolvedElsewhere: 'The server side is healthy, but public DNS queried from your network answers "domain does not exist" (NXDOMAIN), so resolution on your network is intercepted or returning wrong results.',
+    clientProbeReasonDohBlocked: 'Your browser cannot reach this address and your network cannot reach public DNS (DoH) either, which indicates DNS filtering or blocking on your device or by your carrier.',
+    clientProbeReasonUnknown: 'Your browser cannot reach this address and no cross-check against public DNS could explain why.',
+    clientProbeSuggestion: 'Try in order: flush the DNS cache on your device and retry → set your system or router DNS to 1.1.1.1 / 8.8.8.8 → enable Private DNS / Secure DNS (e.g. dns.google, which bypasses UDP/53 hijacking) → use a VPN or a different network (e.g. mobile data).',
+    clientProbeDohTitle: 'Public DNS Cross-check (queried from your network)',
+    clientProbeDohShort: 'Public DNS',
+    clientProbeDohReachable: 'Reachable',
+    clientProbeDohUnreachable: 'Unreachable',
+    clientProbeDohNxdomain: 'Answered NXDOMAIN',
+    clientProbeDohNoAddress: 'No A record',
+    clientProbeDetailTitle: 'Measured From Your Browser',
+    clientProbeTargetUrl: 'Probed URL',
+    clientProbeElapsed: 'Probe time',
+    clientProbeFailureMode: 'Failure mode',
+    clientProbeModeFast: 'Instant rejection (resolver refused it)',
+    clientProbeModeTimeout: 'Timed out (packets dropped)',
+    clientProbeModeUnknown: 'Undetermined',
+    clientProbeBaselineTitle: 'Control host (is your network working at all?)',
+    clientProbeBaselineOk: 'Reachable, network is fine',
+    clientProbeBaselineFailed: 'Unreachable, the network itself is down',
+    clientProbeReasonNetworkBlocked: 'Public DNS resolves this name fine from your network, but the browser request only failed after running into the timeout instead of being rejected immediately. Resolution is therefore not the problem: the failure happens after the connection attempt starts, which points at packets being filtered or dropped on your network or by your carrier.',
+    clientProbeReasonNetworkDown: 'Even a host that is reachable from anywhere (example.com) could not be loaded from your network, so nothing is reachable right now. No conclusion about the target can be drawn until your device is back online.',
+    clientProbeReasonServerOnly: 'Your browser reaches this address, but the check from the server did not pass. Resolution and your own network are therefore fine; the difference comes from the network the server sits on (for example, the target restricting the server region).',
+    clientProbeServerOnlySuggestion: 'Trust your own browser result: this address works from your network right now. The server-side failure only means the server network is restricted and does not describe your experience.',
     portLabel: 'Port',
     port: 'Port',
     expiredLabel: 'Expired',
@@ -695,6 +817,9 @@ export const translations: Record<SupportedLang, Translations> = {
     viewMarkdownReport: 'عرض التقرير الكامل بصيغة Markdown ←',
 
     resultsListTitle: 'قائمة نتائج الفحص',
+    clientIpTitle: 'عنوان IP العام الخاص بك',
+    clientIpLocalNetwork: 'شبكة محلية أو استرجاع محلي',
+    clientIpUnknownLocation: 'الموقع غير معروف',
     showingItems: 'عرض {filtered} من إجمالي {total}',
     showingCount: 'عرض {current} من إجمالي {total}',
     noMatchingItems: 'لا توجد نتائج تطابق معايير التصفية',
@@ -738,6 +863,43 @@ export const translations: Record<SupportedLang, Translations> = {
     tlsStage: 'شهادة TLS',
     httpStageName: 'استجابة HTTP',
     httpStage: 'استجابة HTTP',
+    clientStage: 'اتصال جهازك',
+    clientStageName: 'اتصال جهازك',
+    clientProbeBadge: 'غير متاح من جهازك',
+    clientProbeBadgeResolverBlocked: 'يبدو أن محلل DNS لديك يحجبه',
+    clientProbeBadgeNetworkBlocked: 'محجوب على مسار شبكتك',
+    clientProbeBadgeNetworkDown: 'شبكتك غير متصلة',
+    clientProbeDesc: 'تم قياس هذه النتيجة بطلب مباشر من متصفحك إلى العنوان الهدف، لذلك تعبّر عن شبكتك الحالية فقط. أما المراحل الأربع الأخرى فتُقاس من الخادم.',
+    clientProbeOkText: 'يمكن الوصول',
+    clientProbeFailedText: 'لا يمكن الوصول',
+    clientProbeRunning: 'جارٍ الفحص من متصفحك…',
+    clientProbeSkippedText: 'لم يتم الفحص',
+    clientProbeReasonReachable: 'يمكن للخادم وللمتصفح الوصول إلى هذا العنوان بشكل طبيعي.',
+    clientProbeReasonResolutionFailed: 'الخادم يحل العنوان ويتصل به ويتحقق من الشهادة بنجاح، لكن متصفحك لا يستطيع الوصول إليه، بينما يستطيع DNS العام عبر HTTPS من شبكتك حل النطاق. النطاق والخادم سليمان، والمشكلة على جانبك: ذاكرة DNS المؤقتة أو الراوتر أو اعتراض/تقييد DNS لدى مزود الخدمة أو برامج الحماية.',
+    clientProbeReasonUnresolvedElsewhere: 'الجانب الخادمي سليم، لكن DNS العام من شبكتك يُرجع «النطاق غير موجود» (NXDOMAIN)، أي أن تحليل النطاق على شبكتك معترَض أو تُرجع نتائج خاطئة.',
+    clientProbeReasonDohBlocked: 'متصفحك لا يستطيع الوصول إلى هذا العنوان، كما تعذّر على شبكتك الوصول إلى DNS العام (DoH)، وهذا يدل على حجب أو تقييد لـ DNS من جهازك أو من مزود الخدمة.',
+    clientProbeReasonUnknown: 'متصفحك لا يستطيع الوصول إلى هذا العنوان، ولم يتمكن الفحص المقارن عبر DNS العام من تحديد السبب.',
+    clientProbeSuggestion: 'جرّب بالترتيب: امسح ذاكرة DNS المؤقتة على جهازك ثم أعد المحاولة ← غيّر DNS في النظام أو الراوتر إلى 1.1.1.1 / 8.8.8.8 ← فعّل DNS المشفّر (Private DNS / Secure DNS) مثل dns.google لتجاوز اعتراض المنفذ 53 ← استخدم VPN أو شبكة أخرى (مثل بيانات الجوال).',
+    clientProbeDohTitle: 'مقارنة DNS العامة (من شبكتك)',
+    clientProbeDohShort: 'DNS العام',
+    clientProbeDohReachable: 'يمكن الوصول',
+    clientProbeDohUnreachable: 'لا يمكن الوصول',
+    clientProbeDohNxdomain: 'أرجع NXDOMAIN',
+    clientProbeDohNoAddress: 'لا يوجد سجل A',
+    clientProbeDetailTitle: 'القياس من متصفحك',
+    clientProbeTargetUrl: 'العنوان الذي تم فحصه',
+    clientProbeElapsed: 'زمن الفحص',
+    clientProbeFailureMode: 'طريقة الفشل',
+    clientProbeModeFast: 'رفض فوري (المحلل رفض الطلب)',
+    clientProbeModeTimeout: 'انتهت المهلة (إسقاط الحزم)',
+    clientProbeModeUnknown: 'غير محدد',
+    clientProbeBaselineTitle: 'النطاق المرجعي (هل شبكتك سليمة؟)',
+    clientProbeBaselineOk: 'يمكن الوصول، الشبكة سليمة',
+    clientProbeBaselineFailed: 'لا يمكن الوصول، الشبكة نفسها معطلة',
+    clientProbeReasonNetworkBlocked: 'يستطيع DNS العام من شبكتك تحليل هذا النطاق بنجاح، لكن طلب المتصفح فشل فقط بعد انتهاء المهلة بدلاً من الرفض الفوري. إذن التحليل ليس المشكلة: الفشل يحدث بعد بدء محاولة الاتصال، ما يشير إلى حجب أو إسقاط الحزم على شبكتك أو من مزود الخدمة.',
+    clientProbeReasonNetworkDown: 'حتى نطاق يمكن الوصول إليه من أي مكان (example.com) لم يُحمَّل من شبكتك، أي لا شيء متاح حالياً. لا يمكن استنتاج أي شيء عن الهدف قبل عودة اتصالك بالإنترنت.',
+    clientProbeReasonServerOnly: 'يستطيع متصفحك الوصول إلى هذا العنوان، لكن الفحص من جانب الخادم لم ينجح. أي أن التحليل وشبكتك سليمان، والفرق ناتج عن بيئة شبكة الخادم (مثلاً تقييد الهدف لمنطقة الخادم).',
+    clientProbeServerOnlySuggestion: 'اعتمد على نتيجة متصفحك: هذا العنوان يعمل من شبكتك الآن. فشل الجانب الخادمي يعني فقط أن شبكة الخادم مقيَّدة ولا يصف تجربتك.',
     portLabel: 'المنفذ',
     port: 'المنفذ',
     expiredLabel: 'منتهية الصلاحية',

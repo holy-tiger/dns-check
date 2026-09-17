@@ -3,7 +3,7 @@ import { CheckResult, DiagnosticStep } from '../types';
 /**
  * Normalizes any CheckResult item (such as those loaded from historical saved reports,
  * external API posts, or different schema versions) to guarantee that steps,
- * dns, tcp, tls, and http objects exist with valid structures.
+ * client, dns, tcp, tls, and http objects exist with valid structures.
  */
 export function normalizeCheckResult(raw: unknown, index = 0): CheckResult {
   const item = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
@@ -18,7 +18,7 @@ export function normalizeCheckResult(raw: unknown, index = 0): CheckResult {
   const rawSteps = (typeof item.steps === 'object' && item.steps !== null ? item.steps : {}) as Record<string, unknown>;
   const rawDetails = (typeof item.details === 'object' && item.details !== null ? item.details : {}) as Record<string, unknown>;
 
-  const mapStep = (name: string, key: 'dns' | 'tcp' | 'tls' | 'http'): DiagnosticStep => {
+  const mapStep = (name: string, key: 'client' | 'dns' | 'tcp' | 'tls' | 'http'): DiagnosticStep => {
     // Check if item.steps[key] exists
     if (rawSteps[key] && typeof rawSteps[key] === 'object') {
       const stepObj = rawSteps[key] as Record<string, unknown>;
@@ -102,11 +102,15 @@ export function normalizeCheckResult(raw: unknown, index = 0): CheckResult {
     rawError: typeof item.rawError === 'string' ? item.rawError : undefined,
     totalTimeMs,
     steps: {
+      // Present only for runs made after visitor-side probing was added; older
+      // reports simply stay "pending".
+      client: mapStep('Browser Probe', 'client'),
       dns: mapStep('DNS Resolution', 'dns'),
       tcp: mapStep('TCP Handshake', 'tcp'),
       tls: mapStep('TLS Handshake', 'tls'),
       http: mapStep('HTTP Response', 'http'),
     },
+    clientProbe: (item.clientProbe as CheckResult['clientProbe']) || undefined,
     dnsRecords,
     resolvedIp,
     certDetails: item.certDetails as CheckResult['certDetails'],
